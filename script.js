@@ -12,6 +12,8 @@ const elBlinks = document.getElementById('metric-blinks');
 const elRate = document.getElementById('metric-rate');
 const elStrain = document.getElementById('metric-strain');
 const elTime = document.getElementById('metric-time');
+const strainBadge = document.getElementById('strain-badge');
+const eyeStatus = document.getElementById('eye-status');
 const elEar = document.getElementById('tech-ear');
 const elThreshold = document.getElementById('tech-threshold');
 const chartContext = document.getElementById('blinkChart').getContext('2d');
@@ -53,8 +55,8 @@ function initChart() {
             datasets: [{
                 label: 'Blink Rate (bpm)',
                 data: rateData,
-                borderColor: '#3b82f6',
-                backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                borderColor: '#06b6d4',
+                backgroundColor: 'rgba(6, 182, 212, 0.15)',
                 borderWidth: 2,
                 fill: true,
                 tension: 0.3,
@@ -69,7 +71,7 @@ function initChart() {
                 x: { grid: { display: false }, ticks: { display: false } }
             },
             plugins: {
-                legend: { labels: { color: '#94a3b8' } }
+                legend: { display: false }
             },
             animation: false // Optimized for rapid real-time updates without flickering
         }
@@ -151,21 +153,33 @@ setInterval(() => {
     // Update the dashboard HTML
     elBlinks.innerText = blinkCount;
     elRate.innerText = bpm;
-    elTime.innerText = screenTimeMin.toFixed(1) + "m";
+    elTime.innerText = screenTimeMin.toFixed(1);
     elStrain.innerText = strainLevel;
 
     // Apply specific CSS color bindings depending on severity
-    elStrain.className = "metric-value " + strainLevel.toLowerCase();
-
-    // Spawn audible/visual warnings
     if (strainLevel === "High") {
+        elStrain.style.color = "#ef4444";
+        strainBadge.style.background = "#7f1d1d";
+        strainBadge.style.color = "#fca5a5";
+        strainBadge.innerText = "Warning";
         alertBox.classList.remove("hidden");
         // Only trigger alert sound once per high-strain event to avoid looping spam
         if (!isHighStrainSoundPlayed) {
             alertSound.play().catch(e => console.log("Sound autoplay blocked by browser policy"));
             isHighStrainSoundPlayed = true;
         }
+    } else if (strainLevel === "Medium") {
+        elStrain.style.color = "#f59e0b";
+        strainBadge.style.background = "#78350f";
+        strainBadge.style.color = "#fcd34d";
+        strainBadge.innerText = "Moderate";
+        alertBox.classList.add("hidden");
+        isHighStrainSoundPlayed = false;
     } else {
+        elStrain.style.color = "#34d399";
+        strainBadge.style.background = "#064e3b";
+        strainBadge.style.color = "#6ee7b7";
+        strainBadge.innerText = "Healthy";
         alertBox.classList.add("hidden");
         isHighStrainSoundPlayed = false;
     }
@@ -246,7 +260,11 @@ function onResults(results) {
             if (rawEar < EAR_THRESHOLD) {
                 eyeIsClosed = true;
                 eyeClosedFrames++;
+                eyeStatus.innerText = "Closed";
+                eyeStatus.style.color = "#ef4444";
             } else if (rawEar > EAR_HIGH) {
+                eyeStatus.innerText = "Open";
+                eyeStatus.style.color = "#34d399";
                 if (eyeIsClosed) {
                     // Valid closure finished
                     if (eyeClosedFrames >= CONSEC_FRAMES) {
