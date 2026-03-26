@@ -4,53 +4,64 @@ import time
 
 class EyeTracker:
     def __init__(self):
+        import mediapipe as mp
         self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        self.blink_counter = 0
-        self.eye_aspect_ratio_threshold = 0.25
-        self.prev_blink_time = time.time()
-    
-    def calculate_ear(self, landmarks, eye_indices):
-        # EAR calculation for blink detection
-        # landmarks: list of (x, y)
-        p1 = landmarks[eye_indices[0]]
-        p2 = landmarks[eye_indices[1]]
-        p3 = landmarks[eye_indices[2]]
-        p4 = landmarks[eye_indices[3]]
-        p5 = landmarks[eye_indices[4]]
-        p6 = landmarks[eye_indices[5]]
-        # Vertical distance / horizontal distance
-        vertical = ((p2[1]-p6[1]) + (p3[1]-p5[1])) / 2
-        horizontal = p1[0] - p4[0]
-        ear = vertical / horizontal
+        self.face_mesh = self.mp_face_mesh.FaceMesh(refine_landmarks=True)
+
+        self.blink_count = 0
+        self.eye_closed_frames = 0
+
+        self.EAR_THRESHOLD = 0.20   # adjust later
+        self.CONSEC_FRAMES = 3      # frames required to count blink
+
+    def calculate_ear(self, eye):
+        import numpy as np
+        A = np.linalg.norm(eye[1] - eye[5])
+        B = np.linalg.norm(eye[2] - eye[4])
+        C = np.linalg.norm(eye[0] - eye[3])
+        ear = (A + B) / (2.0 * C)
         return ear
-    
+
     def detect_blink(self, frame):
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.face_mesh.process(rgb_frame)
-        blink_detected = False
+        import cv2
+        import numpy as np
+
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = self.face_mesh.process(rgb)
 
         if results.multi_face_landmarks:
-            landmarks = results.multi_face_landmarks[0].landmark
-            h, w, _ = frame.shape
-            points = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
+            for face_landmarks in results.multi_face_landmarks:
+                h, w, _ = frame.shape
 
-            left_eye_indices = [33, 159, 158, 133, 153, 144]
-            right_eye_indices = [362, 386, 387, 263, 373, 380]
+                # Left eye landmarks (MediaPipe)
+                left_eye_idx = [33, 160, 158, 133, 153, 144]
+                right_eye_idx = [362, 385, 387, 263, 373, 380]
 
-            left_ear = self.calculate_ear(points, left_eye_indices)
-            right_ear = self.calculate_ear(points, right_eye_indices)
+                left_eye = np.array([
+                    [face_landmarks.landmark[i].x * w,
+                     face_landmarks.landmark[i].y * h]
+                    for i in left_eye_idx
+                ])
 
-            ear = (left_ear + right_ear) / 2
+                right_eye = np.array([
+                    [face_landmarks.landmark[i].x * w,
+                     face_landmarks.landmark[i].y * h]
+                    for i in right_eye_idx
+                ])
 
-            if ear < self.eye_aspect_ratio_threshold:
-                if time.time() - self.prev_blink_time > 0.2:  # debounce
-                    self.blink_counter += 1
-                    self.prev_blink_time = time.time()
-                    blink_detected = True
-        return blink_detected, self.blink_counter
+                left_ear = self.calculate_ear(left_eye)
+                right_ear = self.calculate_ear(right_eye)
+
+                ear = (left_ear + right_ear) / 2.0
+
+                # 🔴 Blink logic (fixed)
+                if ear < self.EAR_THRESHOLD:
+                    self.eye_closed_frames += 1
+                else:
+                    if self.eye_closed_frames >= self.CONSEC_FRAMES:
+                        self.blink_count += 1
+                    self.eye_closed_frames = 0
+
+                return True, self.blink_count
+
+        return False, self.blink_count

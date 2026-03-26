@@ -33,6 +33,8 @@ while True:
 
     if cv2.waitKey(1) & 0xFF == 27:  # ESC to quit
         break
+    
+    print("Blinks/min:", strain_monitor.blinks_per_minute)
 
 cap.release()
 cv2.destroyAllWindows()

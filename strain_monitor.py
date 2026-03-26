@@ -3,25 +3,24 @@ import time
 class StrainMonitor:
     def __init__(self):
         self.start_time = time.time()
-        self.blinks = 0
+        self.prev_blinks = 0
+        self.blinks_per_minute = 0
 
-    def update(self, new_blinks):
-        self.blinks = new_blinks
+    def update(self, total_blinks):
+        current_time = time.time()
+        elapsed = current_time - self.start_time
 
-    def get_screen_time(self):
-        return int(time.time() - self.start_time)  # seconds
-
-    def get_blink_rate(self):
-        minutes = self.get_screen_time() / 60
-        return self.blinks / minutes if minutes > 0 else 0
+        if elapsed >= 60:  # every 60 sec
+            self.blinks_per_minute = total_blinks - self.prev_blinks
+            self.prev_blinks = total_blinks
+            self.start_time = current_time
 
     def get_strain_level(self):
-        blink_rate = self.get_blink_rate()
-        screen_time = self.get_screen_time() / 60  # minutes
+        bpm = self.blinks_per_minute
 
-        if blink_rate < 10 or screen_time > 60:
-            return "High"
-        elif blink_rate < 15:
+        if bpm > 15:
+            return "Low"
+        elif bpm > 8:
             return "Medium"
         else:
-            return "Low"
+            return "High"
