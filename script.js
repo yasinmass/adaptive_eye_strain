@@ -21,13 +21,17 @@ let isCalibrated = false;
 let calibStartTime = null;
 let calibEarValues = [];
 
-let EAR_THRESHOLD = 0.25; // Default overridden by calibration
-const CONSEC_FRAMES = 3;
+let EAR_THRESHOLD = 0.25; // Default overridden by calibration (LOW Threshold)
+let EAR_HIGH = 0.27;      // High Threshold (Hysteresis Upper Bound)
+const CONSEC_FRAMES = 2;  // Reduced to 2 allowing rapid blinks
+const BLINK_COOLDOWN = 200; // ms between legitimate blinks
 
 let prevEar = null;
 let eyeClosedFrames = 0;
 let blinkCount = 0;
 let lastBlinkDetected = false;
+let eyeIsClosed = false;
+let lastBlinkTime = 0;
 
 // Strain Monitor Engine variables
 let sessionStartTime = null;
@@ -194,7 +198,7 @@ function onResults(results) {
 
         // Apply robust Exponential Data Smoothing formula
         if (prevEar === null) prevEar = rawEar;
-        const smoothEar = 0.7 * prevEar + 0.3 * rawEar;
+        const smoothEar = 0.5 * prevEar + 0.5 * rawEar; // Fast Responsive 50/50 ratio
         prevEar = smoothEar;
         rawEar = smoothEar;
     }
@@ -220,11 +224,12 @@ function onResults(results) {
                 if (calibEarValues.length > 0) {
                     const sum = calibEarValues.reduce((a, b) => a + b, 0);
                     const avg = sum / calibEarValues.length;
-                    EAR_THRESHOLD = avg * 0.75; // Personal algorithmic calculation
+                    EAR_THRESHOLD = avg * 0.82; // Tightened scaling for tracking light closures
                 } else {
                     EAR_THRESHOLD = 0.25; // Default Safety Fallback Value
                 }
                 
+                EAR_HIGH = EAR_THRESHOLD + 0.02; // Hysteresis scaling
                 isCalibrated = true;
                 sessionStartTime = Date.now();
                 
@@ -237,16 +242,32 @@ function onResults(results) {
                 eyeClosedFrames = 0; // Fresh slate before tracking
             }
         } else {
-            // === TRACKING LIFECYCLE Phase ===
+            // === TRACKING LIFECYCLE Phase (Hysteresis) ===
             if (rawEar < EAR_THRESHOLD) {
+                eyeIsClosed = true;
                 eyeClosedFrames++;
-            } else {
-                if (eyeClosedFrames >= CONSEC_FRAMES) {
-                    blinkCount++;
-                    blinkTimestamps.push(Date.now());
-                    lastBlinkDetected = true;
+            } else if (rawEar > EAR_HIGH) {
+                if (eyeIsClosed) {
+                    // Valid closure finished
+                    if (eyeClosedFrames >= CONSEC_FRAMES) {
+                        const currentTime = Date.now();
+                        // Cooldown prevents double tagging a sluggish single blink
+                        if (currentTime - lastBlinkTime >= BLINK_COOLDOWN) {
+                            blinkCount++;
+                            blinkTimestamps.push(currentTime);
+                            lastBlinkDetected = true;
+                            lastBlinkTime = currentTime;
+                        }
+                    }
+                    // Reset properties upon reopening eye passing High Hysteresis barrier
+                    eyeIsClosed = false;
+                    eyeClosedFrames = 0;
                 }
-                eyeClosedFrames = 0;
+            } else {
+                // Suspended Transition values falling straight between Thresholds
+                if (eyeIsClosed) {
+                    eyeClosedFrames++;
+                }
             }
         }
     }

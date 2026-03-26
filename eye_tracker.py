@@ -18,14 +18,18 @@ class EyeTracker:
         self.eye_closed_frames = 0
         self.state = "CALIBRATING"
         
-        self.EAR_THRESHOLD = 0.20 # Default, updated after 10s calibration
-        self.CONSEC_FRAMES = 3    # Avoid false positives using 3 consecutive frames
+        self.EAR_THRESHOLD = 0.25 # Lower bound (EAR_LOW), updated after calibration
+        self.EAR_HIGH = 0.27      # Upper bound (updated dynamically)
+        self.CONSEC_FRAMES = 2    # Avoid false positives while allowing fast natural blinks
+        self.BLINK_COOLDOWN = 0.2 # Minimum time in seconds between blinks
         
         self.calib_start_time = None
         self.calib_ear_values = []
         self.is_calibrated = False
 
         self.last_blink_detected = False
+        self.last_blink_time = 0
+        self.eye_is_closed = False
         self.running = True
         
         # Stored previous EAR for smoothing
@@ -71,11 +75,11 @@ class EyeTracker:
             right_ear = self.calculate_ear(right_eye)
             raw_ear = (left_ear + right_ear) / 2.0
             
-            # EAR Smoothing (Reduce Noise)
+            # Improved EAR Smoothing (Faster Response)
             if self.prev_ear is None:
                 self.prev_ear = raw_ear
                 
-            smooth_ear = 0.7 * self.prev_ear + 0.3 * raw_ear
+            smooth_ear = 0.5 * self.prev_ear + 0.5 * raw_ear
             self.prev_ear = smooth_ear
             ear = smooth_ear
 
@@ -98,23 +102,37 @@ class EyeTracker:
                     # Fallback if no valid EAR collected
                     if len(self.calib_ear_values) > 0:
                         avg_ear = np.mean(self.calib_ear_values)
-                        self.EAR_THRESHOLD = avg_ear * 0.75
+                        self.EAR_THRESHOLD = avg_ear * 0.82
                     else:
                         self.EAR_THRESHOLD = 0.25
-                        
+                    
+                    self.EAR_HIGH = self.EAR_THRESHOLD + 0.02
                     self.is_calibrated = True
                     self.state = "TRACKING"
             else:
-                # Tracking Phase
-                # Improved blink detection leveraging consecutive frames
+                # Tracking Phase (Hysteresis Logic)
                 if ear < self.EAR_THRESHOLD:
+                    self.eye_is_closed = True
                     self.eye_closed_frames += 1
+                elif ear > self.EAR_HIGH:
+                    if self.eye_is_closed:
+                        # Eye effectively reopened, validate length
+                        if self.eye_closed_frames >= self.CONSEC_FRAMES:
+                            current_time = time.time()
+                            # Check system cooldown
+                            if (current_time - self.last_blink_time) >= self.BLINK_COOLDOWN:
+                                self.blink_count += 1
+                                self.last_blink_detected = True
+                                self.last_blink_time = current_time
+                        
+                        # Reset tracking state naturally
+                        self.eye_is_closed = False
+                        self.eye_closed_frames = 0
                 else:
-                    if self.eye_closed_frames >= self.CONSEC_FRAMES:
-                        self.blink_count += 1
-                        self.last_blink_detected = True
-                    self.eye_closed_frames = 0
-                    
+                    # Hysteresis Transition Phase (values between LOW and HIGH)
+                    if self.eye_is_closed:
+                        self.eye_closed_frames += 1
+                        
                 cv2.putText(frame, f"Blinks: {self.blink_count}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
                 cv2.putText(frame, f"EAR: {ear:.2f}", (50, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
                 cv2.putText(frame, f"Threshold: {self.EAR_THRESHOLD:.2f}", (50, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
