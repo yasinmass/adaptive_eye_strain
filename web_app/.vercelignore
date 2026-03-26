@@ -1,0 +1,10 @@
+# Ignore Python backend and dev artefacts
+../python_app/
+*.py
+__pycache__/
+*.pyc
+venv/
+.venv/
+requirements.txt
+*.ipynb
+.streamlit/

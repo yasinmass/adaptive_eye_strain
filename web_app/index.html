@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Adaptive Eye Strain Protection System — real-time blink detection and strain monitoring, running entirely in the browser.">
+<title>Adaptive Eye Strain Dashboard</title>
+
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Chart.js (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- MediaPipe Camera Utils & FaceMesh (CDN — no Python required) -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+
+<!-- Stylesheet (local) -->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+
+  <!-- ── Header ── -->
+  <header>
+    <h1>Adaptive Eye Strain Dashboard</h1>
+    <div id="status-badge" class="badge">CALIBRATING</div>
+  </header>
+
+  <!-- ── High-Strain Alert Banner ── -->
+  <div id="alert-box" class="card alert hidden">
+    <h3 style="color:#ef4444;">⚠️ High Strain Detected</h3>
+    <p style="color:#fca5a5;margin-top:5px;">
+      Your blink rate is critically low or screen time is excessive.
+      Please take a 20-second break!
+    </p>
+  </div>
+
+  <!-- ── Main Grid ── -->
+  <div class="grid-main">
+
+    <!-- Left: Webcam Feed -->
+    <div class="card webcam-card">
+      <div class="webcam-area">
+        <video id="webcam" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div id="calibration-overlay" class="calibration-overlay">
+          <h2 id="calib-text">Calibrating: 10s</h2>
+          <p>Keep your eyes open naturally and look at the camera.</p>
+        </div>
+      </div>
+      <div class="webcam-footer">
+        <div><span class="label">Resolution</span></div>
+        <div><span class="value">640 × 480</span></div>
+        <div><span class="label">Status</span></div>
+        <div><span class="value">Live</span></div>
+      </div>
+    </div>
+
+    <!-- Right: Metrics & Chart -->
+    <div class="right-col">
+
+      <!-- 4-Up Metric Cards -->
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="label">
+            <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Total Blinks
+          </div>
+          <div class="value" id="metric-blinks">0</div>
+        </div>
+        <div class="metric-card">
+          <div class="label">
+            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            Blink Rate
+          </div>
+          <div class="value"><span id="metric-rate">0</span><span class="unit"> bpm</span></div>
+        </div>
+        <div class="metric-card strain">
+          <div class="label">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+              <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+              <line x1="9" y1="9" x2="9.01" y2="9"/>
+              <line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>
+            Current Strain
+          </div>
+          <div class="value">
+            <span id="metric-strain">Low</span>
+            <span id="strain-badge" class="badge-low">Healthy</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="label">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Screen Time
+          </div>
+          <div class="value"><span id="metric-time">0.0</span><span class="unit"> min</span></div>
+        </div>
+      </div>
+
+      <!-- EAR Technical Info Bar -->
+      <div class="ear-bar">
+        <div class="ear-item">
+          <span class="ear-label">Current EAR</span>
+          <span class="ear-value" id="tech-ear">0.000</span>
+        </div>
+        <div class="divider"></div>
+        <div class="ear-item">
+          <span class="ear-label">EAR Threshold</span>
+          <span class="ear-value" id="tech-threshold">--</span>
+        </div>
+        <div class="divider"></div>
+        <div class="ear-item">
+          <span class="ear-label">Eye Status</span>
+          <span id="eye-status" style="color:#34d399;font-weight:600">Open</span>
+        </div>
+      </div>
+
+      <!-- Live Blink-Rate Chart -->
+      <div class="chart-card">
+        <h3>Blink Rate Over Time</h3>
+        <div class="chart-container">
+          <canvas id="blinkChart"></canvas>
+        </div>
+      </div>
+
+    </div><!-- /.right-col -->
+  </div><!-- /.grid-main -->
+</div><!-- /.container -->
+
+<!-- Alert sound (CDN hosted — safe for static deploy) -->
+<audio id="alert-sound"
+  src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+  preload="auto"></audio>
+
+<!-- Application logic (local) -->
+<script src="script.js"></script>
+</body>
+</html>
